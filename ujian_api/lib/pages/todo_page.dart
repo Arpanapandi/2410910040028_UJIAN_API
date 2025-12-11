@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import '../models/todo_model.dart';
 
 class TodoPage extends StatefulWidget {
   const TodoPage({super.key});
@@ -10,7 +11,7 @@ class TodoPage extends StatefulWidget {
 }
 
 class _TodoPageState extends State<TodoPage> {
-  List todos = [];
+  List<TodoModel> todos = [];
   bool isLoading = true;
 
   Future<void> getTodos() async {
@@ -21,18 +22,26 @@ class _TodoPageState extends State<TodoPage> {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
 
+        // Parsing JSON ke List<TodoModel>
+        List<TodoModel> loadedTodos = (data["todos"] as List)
+            .map((json) => TodoModel.fromJson(json))
+            .toList();
+
         setState(() {
-          todos = data["todos"];
+          todos = loadedTodos;
           isLoading = false;
         });
       } else {
         setState(() => isLoading = false);
+        if (!mounted) return;
+
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Gagal mengambil data todos")),
         );
       }
     } catch (e) {
       setState(() => isLoading = false);
+      if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Error: $e")),
@@ -49,23 +58,51 @@ class _TodoPageState extends State<TodoPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Todo List")),
+      appBar: AppBar(
+        title: const Text("Todo List"),
+        centerTitle: true,
+      ),
+
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
-          : ListView.builder(
-              itemCount: todos.length,
-              itemBuilder: (context, index) {
-                final item = todos[index];
 
-                return ListTile(
-                  title: Text(item["todo"]),
-                  subtitle: Text("User ID: ${item['userId']}"),
-                  trailing: Icon(
-                    item["completed"] ? Icons.check : Icons.close,
-                    color: item["completed"] ? Colors.green : Colors.red,
-                  ),
-                );
-              },
+          : RefreshIndicator(
+              onRefresh: getTodos,
+              child: ListView.builder(
+                padding: const EdgeInsets.all(12),
+                itemCount: todos.length,
+                itemBuilder: (context, index) {
+                  final todo = todos[index];
+
+                  return Card(
+                    elevation: 3,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    margin: const EdgeInsets.symmetric(vertical: 6),
+                    child: ListTile(
+                      contentPadding: const EdgeInsets.all(12),
+                      title: Text(
+                        todo.todo,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      subtitle: Text(
+                        "User ID: ${todo.userId}",
+                        style: const TextStyle(fontSize: 13),
+                      ),
+                      trailing: Icon(
+                        todo.completed
+                            ? Icons.check_circle
+                            : Icons.cancel,
+                        color: todo.completed ? Colors.green : Colors.red,
+                      ),
+                    ),
+                  );
+                },
+              ),
             ),
     );
   }
